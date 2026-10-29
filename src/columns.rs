@@ -295,39 +295,39 @@ const CRD_COLUMNS: &[Column] = &[
 const FLUX_OBJECT_COLUMNS: &[Column] = &[
     column("NAME", col_name),
     status_column("READY", col_flux_ready),
+    column("SUSPENDED", col_flux_suspended),
     column("MESSAGE", col_flux_message),
     column("REVISION", col_flux_revision),
-    column("SUSPENDED", col_flux_suspended),
     column("AGE", col_age),
 ];
 
 const FLUX_SOURCE_COLUMNS: &[Column] = &[
     column("NAME", col_name),
     status_column("READY", col_flux_ready),
+    column("SUSPENDED", col_flux_suspended),
     column("MESSAGE", col_flux_message),
     column("REVISION", col_flux_source_revision),
     column("URL", col_flux_source_url),
-    column("SUSPENDED", col_flux_suspended),
     column("AGE", col_age),
 ];
 
 const FLUX_OPERATOR_COLUMNS: &[Column] = &[
     column("NAME", col_name),
     status_column("READY", col_flux_ready),
+    column("SUSPENDED", col_flux_operator_suspended),
     column("MESSAGE", col_flux_message),
     column("REVISION", col_flux_revision),
     column("RESOURCES", col_flux_inventory),
-    column("SUSPENDED", col_flux_operator_suspended),
     column("AGE", col_age),
 ];
 
 const FLUX_INPUT_PROVIDER_COLUMNS: &[Column] = &[
     column("NAME", col_name),
     status_column("READY", col_flux_ready),
+    column("SUSPENDED", col_flux_operator_suspended),
     column("MESSAGE", col_flux_message),
     column("REVISION", col_flux_exported_revision),
     column("INPUTS", col_flux_exported_inputs),
-    column("SUSPENDED", col_flux_operator_suspended),
     column("AGE", col_age),
 ];
 
@@ -3461,9 +3461,9 @@ mod tests {
         );
         assert_eq!(cells[0], "apps");
         assert_eq!(cells[1], "True");
-        assert_eq!(cells[2], "Applied revision: main@sha1:abc123");
-        assert_eq!(cells[3], "main@sha1:abc123");
-        assert_eq!(cells[4], "false");
+        assert_eq!(cells[2], "false");
+        assert_eq!(cells[3], "Applied revision: main@sha1:abc123");
+        assert_eq!(cells[4], "main@sha1:abc123");
         assert_eq!(status_idx, Some(1));
     }
 
@@ -3484,9 +3484,9 @@ mod tests {
         }));
         let (cells, status_idx) = cells(&hr, "helm.toolkit.fluxcd.io", "helmreleases", now_secs());
         assert_eq!(cells[1], "False");
-        assert_eq!(cells[2], "install retries exhausted");
-        assert_eq!(cells[3], "6.5.4");
-        assert_eq!(cells[4], "true");
+        assert_eq!(cells[2], "true");
+        assert_eq!(cells[3], "install retries exhausted");
+        assert_eq!(cells[4], "6.5.4");
         assert_eq!(status_idx, Some(1));
     }
 
@@ -3515,19 +3515,19 @@ mod tests {
             vec![
                 "NAME",
                 "READY",
+                "SUSPENDED",
                 "MESSAGE",
                 "REVISION",
                 "URL",
-                "SUSPENDED",
                 "AGE"
             ]
         );
         assert_eq!(cells[0], "apps");
         assert_eq!(cells[1], "True");
-        assert_eq!(cells[2], "stored artifact");
-        assert_eq!(cells[3], "main@sha1:abc123");
-        assert_eq!(cells[4], "https://github.com/example/apps");
-        assert_eq!(cells[5], "true");
+        assert_eq!(cells[2], "true");
+        assert_eq!(cells[3], "stored artifact");
+        assert_eq!(cells[4], "main@sha1:abc123");
+        assert_eq!(cells[5], "https://github.com/example/apps");
         assert_eq!(status_idx, Some(1));
     }
 
@@ -3545,10 +3545,10 @@ mod tests {
         }));
         let (cells, status_idx) = cells(&bucket, "source.toolkit.fluxcd.io", "buckets", now_secs());
         assert_eq!(cells[1], "False");
-        assert_eq!(cells[2], "denied");
-        assert_eq!(cells[3], "sha256:abc123");
-        assert_eq!(cells[4], "https://s3.example.com/charts");
-        assert_eq!(cells[5], "false");
+        assert_eq!(cells[2], "false");
+        assert_eq!(cells[3], "denied");
+        assert_eq!(cells[4], "sha256:abc123");
+        assert_eq!(cells[5], "https://s3.example.com/charts");
         assert_eq!(status_idx, Some(1));
     }
 
@@ -3735,8 +3735,9 @@ mod tests {
             now_secs(),
         );
         assert_eq!(cells[1], "Unknown");
-        assert_eq!(cells[2], "");
+        assert_eq!(cells[2], "false");
         assert_eq!(cells[3], "");
+        assert_eq!(cells[4], "");
     }
 
     #[test]
@@ -3762,10 +3763,10 @@ mod tests {
             [
                 "NAME",
                 "READY",
+                "SUSPENDED",
                 "MESSAGE",
                 "REVISION",
                 "RESOURCES",
-                "SUSPENDED",
                 "AGE"
             ]
         );
@@ -3775,10 +3776,10 @@ mod tests {
             [
                 "apps",
                 "True",
+                "true",
                 "Reconciliation finished",
                 "sha256:abc",
-                "2",
-                "true"
+                "2"
             ]
         );
         assert_eq!(status_idx, Some(1));
@@ -3800,7 +3801,7 @@ mod tests {
         );
         assert_eq!(
             &row[..6],
-            ["flux", "Unknown", "", "v2.7.0@sha256:def", "0", "false"]
+            ["flux", "Unknown", "false", "", "v2.7.0@sha256:def", "0"]
         );
 
         let provider = obj(json!({
@@ -3817,10 +3818,10 @@ mod tests {
             [
                 "NAME",
                 "READY",
+                "SUSPENDED",
                 "MESSAGE",
                 "REVISION",
                 "INPUTS",
-                "SUSPENDED",
                 "AGE"
             ]
         );
@@ -3830,7 +3831,7 @@ mod tests {
             "resourcesetinputproviders",
             now_secs(),
         );
-        assert_eq!(&row[3..6], ["sha256:123", "3", "false"]);
+        assert_eq!(&row[2..6], ["false", "", "sha256:123", "3"]);
 
         // Same plural in another group gets no curated columns.
         assert!(!has_curated("example.com", "resourcesets"));
