@@ -33049,10 +33049,7 @@ async fn configured_metric_columns_keep_order_values_and_live_filters() {
         headers,
         ["NAME", "READY", "CPU", "CPU/R", "LOAD", "MEM/R", "AGE"]
     );
-    assert_eq!(
-        &rows[0][..6],
-        ["api", "3/3", "4200m", "4200m", "100%", "1.1Gi"]
-    );
+    assert_eq!(&rows[0][..6], ["api", "3/3", "4.2", "4.2", "100%", "1.1Gi"]);
     app.handle_key(press(KeyCode::Char('w'))).unwrap();
     let (headers, rows) = app.snapshot_table();
     assert_eq!(headers[6], "LIMIT");
@@ -33101,7 +33098,7 @@ async fn configured_metric_columns_keep_order_values_and_live_filters() {
     });
     let (_, rows) = app.snapshot_table();
     assert_eq!(rows[0][2], "-");
-    assert_eq!(rows[0][3], "4200m");
+    assert_eq!(rows[0][3], "4.2");
     assert_eq!(rows[0][4], "-");
 }
 
@@ -34011,12 +34008,12 @@ async fn quantity_formats_render_values_and_keep_unformatted_columns() {
     assert_eq!(app.display_headers().to_vec(), ["NAME", "CPU/A", "CPU/RAW"]);
     app.handle_key(press(KeyCode::Char('w'))).unwrap();
     let cases = [
-        (json!("4"), json!("16374956Ki"), "4000m", "15.6Gi"),
+        (json!("4"), json!("16374956Ki"), "4", "15.6Gi"),
         (json!("250m"), json!("512Mi"), "250m", "512Mi"),
         (json!("1000000n"), json!("1Gi"), "1m", "1.0Gi"),
         (json!("1500u"), json!("129M"), "2m", "123Mi"),
         (json!("1e-3"), json!("1e6"), "1m", "1Mi"),
-        (json!(4), json!(1048576), "4000m", "1Mi"),
+        (json!(4), json!(1048576), "4", "1Mi"),
         (json!(0), json!(0), "0m", "0Mi"),
         (json!("0"), json!("0Ki"), "0m", "0Mi"),
         (json!("-0"), json!("-0"), "0m", "0Mi"),
@@ -34108,7 +34105,7 @@ async fn quantity_formats_sort_and_filter_before_display_rounding() {
         );
     }
     let (_, rows) = app.snapshot_table();
-    assert!(rows.iter().all(|row| row[1..] == ["1000m", "1.0Gi"]));
+    assert!(rows.iter().all(|row| row[1..] == ["1", "1.0Gi"]));
     for header in ["CPU/A", "MEM/A"] {
         app.handle_key(press(KeyCode::Char('S'))).unwrap();
         for key in header.chars() {
@@ -34233,7 +34230,7 @@ async fn quantity_formats_reject_incompatible_columns_and_keep_valid_columns() {
             "spec": {"image": "registry:5000/app:1.2.3"}, "status": {"allocatable": {"cpu": "4"}}}),
         );
         let (_, rows) = app.snapshot_table();
-        assert_eq!(rows[0][1], if format == "cpu" { "4000m" } else { "0Mi" });
+        assert_eq!(rows[0][1], if format == "cpu" { "4" } else { "0Mi" });
         assert_eq!(rows[0][2..], ["4", "1.2.3"]);
     }
 }
@@ -34358,7 +34355,7 @@ async fn fallback_paths_render_sort_filter_and_refresh_selected_values() {
     app.handle_key(press(KeyCode::Char('w'))).unwrap();
     let (headers, rows) = app.snapshot_table();
     assert_eq!(headers, ["NAME", "NODEPOOL", "CPU/A"]);
-    assert_eq!(rows[0], ["a-high", "primary", "2000m"]);
+    assert_eq!(rows[0], ["a-high", "primary", "2"]);
     assert_eq!(rows[1], ["m-missing", "<none>", "invalid"]);
     assert_eq!(rows[2], ["z-low", "fallback", "500m"]);
     app.handle_key(press(KeyCode::Char('S'))).unwrap();
@@ -34386,7 +34383,7 @@ async fn fallback_paths_render_sort_filter_and_refresh_selected_values() {
     type_filter(&mut app, "nodepool=new-primary");
     let (_, rows) = app.snapshot_table();
     assert_eq!(rows.len(), 1);
-    assert_eq!(rows[0], ["z-low", "new-primary", "3000m"]);
+    assert_eq!(rows[0], ["z-low", "new-primary", "3"]);
 }
 
 #[tokio::test]

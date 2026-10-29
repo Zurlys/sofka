@@ -4698,7 +4698,7 @@ fn draw_container_trends(frame: &mut Frame, app: &App, area: Rect) {
         let bars = app.container_trend_bars(cpu);
         let maximum = bars.iter().flatten().copied().max().unwrap_or(0);
         let scale = if cpu {
-            format!("{maximum}m")
+            crate::columns::fmt_cpu_sample(Some(maximum as i64))
         } else if maximum == 0 {
             "0B".into()
         } else {

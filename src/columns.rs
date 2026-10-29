@@ -2869,8 +2869,18 @@ pub fn fmt_mem_sample(bytes: Option<i64>) -> String {
 pub fn fmt_cpu(milli: i64) -> String {
     if milli <= 0 {
         "-".into()
-    } else {
+    } else if milli < 1000 {
         format!("{milli}m")
+    } else {
+        let (mut whole, mut hundredths) = (milli / 1000, (milli % 1000 + 5) / 10);
+        if hundredths == 100 {
+            (whole, hundredths) = (whole + 1, 0);
+        }
+        match hundredths {
+            0 => whole.to_string(),
+            h if h % 10 == 0 => format!("{whole}.{}", h / 10),
+            h => format!("{whole}.{h:02}"),
+        }
     }
 }
 
@@ -2935,6 +2945,22 @@ mod tests {
         assert_eq!(parse_mem_bytes("1Mi"), 1024 * 1024);
         assert_eq!(parse_mem_bytes("1Gi"), 1024 * 1024 * 1024);
         assert_eq!(fmt_mem(parse_mem_bytes("512Mi")), "512Mi");
+    }
+
+    #[test]
+    fn fmt_cpu_switches_to_cores_from_one_core() {
+        assert_eq!(fmt_cpu(0), "-");
+        assert_eq!(fmt_cpu(250), "250m");
+        assert_eq!(fmt_cpu(999), "999m");
+        assert_eq!(fmt_cpu(1000), "1");
+        assert_eq!(fmt_cpu(1500), "1.5");
+        assert_eq!(fmt_cpu(1234), "1.23");
+        assert_eq!(fmt_cpu(1004), "1");
+        assert_eq!(fmt_cpu(64000), "64");
+        assert_eq!(fmt_cpu(1005), "1.01");
+        assert_eq!(fmt_cpu(1995), "2");
+        assert_eq!(fmt_cpu(1050), "1.05");
+        assert_eq!(fmt_cpu(i64::MAX), "9223372036854775.81");
     }
 
     #[test]

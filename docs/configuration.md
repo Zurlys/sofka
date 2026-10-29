@@ -397,8 +397,9 @@ Path columns accept `regex` to show the first capture group of a value. See
 [regex extraction](views.md#regex-extraction).
 
 Quantity path columns accept `format = "cpu"` or `format = "memory"` with
-`type = "quantity"`. These formats use millicores or Mi/Gi for display and
-the original values for sorting and numeric filters. See
+`type = "quantity"`. CPU displays millicores below one core and cores from one
+core up; memory displays Mi/Gi. Both use the original values for sorting and
+numeric filters. See
 [quantity formats](views.md#quantity-formats).
 
 ## Other sections
