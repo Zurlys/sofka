@@ -641,6 +641,13 @@ fn draw_header(frame: &mut Frame, app: &App, area: Rect) {
     for span in favorite_namespace_spans(app, favorites_width) {
         namespace_line.push_span(span);
     }
+    let mut count_line = field("Count:", app.store.len().to_string(), theme::text());
+    if app.watch_polling {
+        count_line.push_span(Span::styled(
+            format!("  {}", polling_label()),
+            Style::default().fg(theme::yellow()),
+        ));
+    }
     let info = vec![
         context_line,
         field(
@@ -650,7 +657,7 @@ fn draw_header(frame: &mut Frame, app: &App, area: Rect) {
         ),
         namespace_line,
         field("Resource:", kind, theme::peach()),
-        field("Count:", app.store.len().to_string(), theme::text()),
+        count_line,
     ];
 
     // Per-kind key hints share the box with the info cluster (k9s-style);
@@ -791,6 +798,16 @@ fn draw_compact_header(frame: &mut Frame, app: &App, area: Rect) {
         Span::styled(" sofka ", theme::title()),
         Span::styled(kind, Style::default().fg(theme::peach())),
         Span::styled(format!(" [{}]", app.store.len()), theme::dim()),
+    ];
+    // Beside the count, ahead of the namespace and context, so a long
+    // context cannot clip it off a narrow header.
+    if app.watch_polling {
+        spans.push(Span::styled(
+            format!("  {}", polling_label()),
+            Style::default().fg(theme::yellow()),
+        ));
+    }
+    spans.extend([
         Span::styled("  ns:", theme::dim()),
         Span::styled(ns, Style::default().fg(theme::green())),
         Span::styled("  ", theme::dim()),
@@ -798,7 +815,7 @@ fn draw_compact_header(frame: &mut Frame, app: &App, area: Rect) {
             diagnostic_value(app, &app.cluster.context).into_owned(),
             Style::default().fg(theme::mauve()),
         ),
-    ];
+    ]);
     let readonly_width = if app.readonly { " [ro]".width() } else { 0 };
     let used: usize = spans.iter().map(Span::width).sum();
     let room = usize::from(area.width.saturating_sub(COMPACT_SYNC_WIDTH))
@@ -844,7 +861,12 @@ fn draw_compact_header(frame: &mut Frame, app: &App, area: Rect) {
     } else if app.ns_resources_active() && app.mode == Mode::Table && app.store.synced {
         ("○ snapshot", theme::overlay1())
     } else {
-        sync_indicator(app.mode, app.doc_filter_return, app.store.synced)
+        sync_indicator(
+            app.mode,
+            app.doc_filter_return,
+            app.store.synced,
+            app.watch_polling,
+        )
     };
     let cols = Layout::default()
         .direction(Direction::Horizontal)
@@ -6299,9 +6321,23 @@ fn draw_prompt(frame: &mut Frame, app: &App, area: Rect) {
     frame.render_widget(Paragraph::new(line), area);
 }
 
+/// Header text for a view whose watch RBAC refused, kept current by a list.
+fn polling_label() -> String {
+    format!(
+        "polling {}s (watch forbidden)",
+        crate::k8s::POLL_INTERVAL.as_secs()
+    )
+}
+
 /// Status indicator for views without an active resource refresh source.
-/// Document content is static; table data follows the watch.
-fn sync_indicator(mode: Mode, doc_filter_return: Mode, synced: bool) -> (&'static str, Color) {
+/// Document content is static; table data follows the watch, or the list
+/// poll that replaced it.
+fn sync_indicator(
+    mode: Mode,
+    doc_filter_return: Mode,
+    synced: bool,
+    polling: bool,
+) -> (&'static str, Color) {
     let static_doc = match mode {
         Mode::Detail | Mode::Diff | Mode::Explain => true,
         // A directory listing is fetched once by exec, not watched — `r`
@@ -6313,6 +6349,8 @@ fn sync_indicator(mode: Mode, doc_filter_return: Mode, synced: bool) -> (&'stati
     };
     if static_doc {
         ("○ static", theme::overlay1())
+    } else if synced && polling {
+        ("● polling", theme::yellow())
     } else if synced {
         ("● live", theme::green())
     } else {
@@ -6333,7 +6371,12 @@ fn draw_status(frame: &mut Frame, app: &App, area: Rect) {
     } else if app.ns_resources_active() && app.mode == Mode::Table && app.store.synced {
         ("○ snapshot", theme::overlay1())
     } else {
-        sync_indicator(app.mode, app.doc_filter_return, app.store.synced)
+        sync_indicator(
+            app.mode,
+            app.doc_filter_return,
+            app.store.synced,
+            app.watch_polling,
+        )
     };
     let cols = Layout::default()
         .direction(Direction::Horizontal)
@@ -6903,28 +6946,50 @@ mod tests {
     /// claim it's live (#175 follow-up report from Discord).
     #[test]
     fn sync_indicator_labels_static_documents() {
-        assert_eq!(sync_indicator(Mode::Table, Mode::Detail, true).0, "● live");
         assert_eq!(
-            sync_indicator(Mode::Table, Mode::Detail, false).0,
+            sync_indicator(Mode::Table, Mode::Detail, true, false).0,
+            "● live"
+        );
+        assert_eq!(
+            sync_indicator(Mode::Table, Mode::Detail, false, false).0,
             "○ syncing"
         );
         assert_eq!(
-            sync_indicator(Mode::Detail, Mode::Detail, true).0,
+            sync_indicator(Mode::Detail, Mode::Detail, true, false).0,
             "○ static"
         );
-        assert_eq!(sync_indicator(Mode::Diff, Mode::Detail, true).0, "○ static");
+        assert_eq!(
+            sync_indicator(Mode::Diff, Mode::Detail, true, false).0,
+            "○ static"
+        );
         // `/` search inside a document keeps the static label…
         assert_eq!(
-            sync_indicator(Mode::DocFilter, Mode::Detail, true).0,
+            sync_indicator(Mode::DocFilter, Mode::Detail, true, false).0,
             "○ static"
         );
         // …but searching help (not resource data) doesn't.
         assert_eq!(
-            sync_indicator(Mode::DocFilter, Mode::Help, true).0,
+            sync_indicator(Mode::DocFilter, Mode::Help, true, false).0,
             "● live"
         );
         // Events are watch-backed, genuinely live.
-        assert_eq!(sync_indicator(Mode::Events, Mode::Detail, true).0, "● live");
+        assert_eq!(
+            sync_indicator(Mode::Events, Mode::Detail, true, false).0,
+            "● live"
+        );
+        // A view RBAC only lets list is current to the last poll, not live.
+        assert_eq!(
+            sync_indicator(Mode::Table, Mode::Detail, true, true).0,
+            "● polling"
+        );
+        assert_eq!(
+            sync_indicator(Mode::Table, Mode::Detail, false, true).0,
+            "○ syncing"
+        );
+        assert_eq!(
+            sync_indicator(Mode::Detail, Mode::Detail, true, true).0,
+            "○ static"
+        );
     }
 
     #[test]
